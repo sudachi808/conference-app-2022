@@ -287,7 +287,8 @@ fun SessionsList(
                 .scan(0 to 0) { acc, value -> value to (value - acc.first) }
         }
         val firstVisibleItemIndexFlow = remember {
-            snapshotFlow { sessionsListListStates[dayIndex].firstVisibleItemIndex }
+            firstVisibleItemScrollOffsetFlow
+                .map { sessionsListListStates[dayIndex].firstVisibleItemIndex }
                 .scan(0 to 0) { acc, value -> value to (value - acc.first) }
         }
         LaunchedEffect(Unit) {
