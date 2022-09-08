@@ -149,8 +149,8 @@ fun Sessions(
                         scheduleState = scheduleState,
                         days = days,
                         onTimetableClick = onTimetableClick,
-                        onVerticalScroll = { delta ->
-                            showTabDate = delta > 0
+                        onVerticalScroll = { direction ->
+                            showTabDate = direction == Direction.Down
                         }
                     )
                 } else {
@@ -181,7 +181,7 @@ fun Timetable(
     scheduleState: Loaded,
     days: Array<DroidKaigi2022Day>,
     onTimetableClick: (TimetableItemId) -> Unit,
-    onVerticalScroll: (Float) -> Unit,
+    onVerticalScroll: (Direction) -> Unit,
 ) {
     val screenScaleState = rememberScreenScaleState()
     HorizontalPager(
@@ -201,7 +201,8 @@ fun Timetable(
             scrollY.drop(1)
                 .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
                 .map { it.second }
-                .filter { abs(it) > 0 }
+                .filter { delta -> abs(delta) > 0 }
+                .map { delta -> if (delta > 0) Direction.Down else Direction.Up }
                 .collect(onVerticalScroll)
         }
 
