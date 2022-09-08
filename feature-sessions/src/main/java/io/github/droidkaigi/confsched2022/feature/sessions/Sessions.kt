@@ -58,7 +58,6 @@ import io.github.droidkaigi.confsched2022.model.TimetableItemWithFavorite
 import io.github.droidkaigi.confsched2022.model.fake
 import io.github.droidkaigi.confsched2022.model.orEmptyContents
 import io.github.droidkaigi.confsched2022.ui.pagerTabIndicatorOffset
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -196,10 +195,7 @@ fun Timetable(
         val coroutineScope = rememberCoroutineScope()
 
         val scrollY = remember {
-            MutableStateFlow(timetableState.screenScrollState.scrollY)
-        }
-        LaunchedEffect(timetableState.screenScrollState.scrollY) {
-            scrollY.emit(timetableState.screenScrollState.scrollY)
+            snapshotFlow { timetableState.screenScrollState.scrollY }
         }
         LaunchedEffect(Unit) {
             scrollY.drop(1)
