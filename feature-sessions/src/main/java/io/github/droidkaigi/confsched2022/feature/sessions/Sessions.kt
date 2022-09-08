@@ -33,7 +33,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -173,7 +172,7 @@ fun Sessions(
 
 enum class Direction { Up, Down }
 
-@OptIn(ExperimentalPagerApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalPagerApi::class)
 @Composable
 fun Timetable(
     modifier: Modifier = Modifier,
@@ -194,17 +193,10 @@ fun Timetable(
         val timetableState = rememberTimetableState(screenScaleState = screenScaleState)
         val coroutineScope = rememberCoroutineScope()
 
-        val scrollY = remember {
-            snapshotFlow { timetableState.screenScrollState.scrollY }
-        }
-        LaunchedEffect(Unit) {
-            scrollY.drop(1)
-                .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
-                .map { it.second }
-                .filter { delta -> abs(delta) > 0 }
-                .map { delta -> if (delta > 0) Direction.Down else Direction.Up }
-                .collect(onVerticalScroll)
-        }
+        TimetableScrollDetector(
+            state = timetableState,
+            onScroll = onVerticalScroll,
+        )
 
         Row {
             Hours(
@@ -244,6 +236,25 @@ fun Timetable(
     }
 }
 
+@Composable
+fun TimetableScrollDetector(
+    state: TimetableState,
+    onScroll: (Direction) -> Unit,
+) {
+    val scrollY = remember {
+        snapshotFlow { state.screenScrollState.scrollY }
+    }
+
+    LaunchedEffect(Unit) {
+        scrollY.drop(1)
+            .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
+            .map { it.second }
+            .filter { delta -> abs(delta) > 0 }
+            .map { delta -> if (delta > 0) Direction.Down else Direction.Up }
+            .collect(onScroll)
+    }
+}
+
 @OptIn(ExperimentalPagerApi::class)
 @Composable
 fun SessionsList(
@@ -254,7 +265,7 @@ fun SessionsList(
     days: Array<DroidKaigi2022Day>,
     onTimetableClick: (timetableItemId: TimetableItemId) -> Unit,
     onFavoriteClick: (TimetableItemId, Boolean) -> Unit,
-    onVerticalScroll: (Direction) -> Unit = {},
+    onVerticalScroll: (Direction) -> Unit,
 ) {
     HorizontalPager(
         count = days.size,
@@ -282,41 +293,10 @@ fun SessionsList(
             list.toList()
         }
 
-        val firstVisibleItemScrollOffsetFlow = remember {
-            snapshotFlow { sessionsListListStates[dayIndex].firstVisibleItemScrollOffset }
-                .scan(0 to 0) { acc, value -> value to (value - acc.first) }
-        }
-        val firstVisibleItemIndexFlow = remember {
-            firstVisibleItemScrollOffsetFlow
-                .map { sessionsListListStates[dayIndex].firstVisibleItemIndex }
-                .scan(0 to 0) { acc, value -> value to (value - acc.first) }
-        }
-        LaunchedEffect(Unit) {
-            firstVisibleItemScrollOffsetFlow
-                .combine(firstVisibleItemIndexFlow) { offset, index ->
-                    offset.second to index.second
-                }
-                .mapNotNull { (offsetDelta, indexDelta) ->
-                    when {
-                        offsetDelta > 0 -> when {
-                            indexDelta > 0 -> Direction.Up
-                            indexDelta < 0 -> Direction.Down
-                            else -> Direction.Up
-                        }
-                        offsetDelta < 0 -> when {
-                            indexDelta > 0 -> Direction.Up
-                            indexDelta < 0 -> Direction.Down
-                            else -> Direction.Down
-                        }
-                        else -> when {
-                            indexDelta > 0 -> Direction.Up
-                            indexDelta < 0 -> Direction.Down
-                            else -> null
-                        }
-                    }
-                }
-                .collect(onVerticalScroll)
-        }
+        SessionsListScrollDetector(
+            state = remember { sessionsListListStates[dayIndex] },
+            onScroll = onVerticalScroll,
+        )
 
         SessionList(
             timetable = timeHeaderAndTimetableItems,
@@ -361,6 +341,49 @@ fun SessionsList(
 }
 
 data class DurationTime(val startAt: String, val endAt: String)
+
+@Composable
+fun SessionsListScrollDetector(
+    state: LazyListState,
+    onScroll: (Direction) -> Unit,
+) {
+    val firstVisibleItemScrollOffsetFlow = remember {
+        snapshotFlow { state.firstVisibleItemScrollOffset }
+            .scan(0 to 0) { acc, value -> value to (value - acc.first) }
+    }
+    val firstVisibleItemIndexFlow = remember {
+        firstVisibleItemScrollOffsetFlow
+            .map { state.firstVisibleItemIndex }
+            .scan(0 to 0) { acc, value -> value to (value - acc.first) }
+    }
+
+    LaunchedEffect(Unit) {
+        firstVisibleItemScrollOffsetFlow
+            .combine(firstVisibleItemIndexFlow) { offset, index ->
+                offset.second to index.second
+            }
+            .mapNotNull { (offsetDelta, indexDelta) ->
+                when {
+                    offsetDelta > 0 -> when {
+                        indexDelta > 0 -> Direction.Up
+                        indexDelta < 0 -> Direction.Down
+                        else -> Direction.Up
+                    }
+                    offsetDelta < 0 -> when {
+                        indexDelta > 0 -> Direction.Up
+                        indexDelta < 0 -> Direction.Down
+                        else -> Direction.Down
+                    }
+                    else -> when {
+                        indexDelta > 0 -> Direction.Up
+                        indexDelta < 0 -> Direction.Down
+                        else -> null
+                    }
+                }
+            }
+            .collect(onScroll)
+    }
+}
 
 @OptIn(ExperimentalPagerApi::class)
 @Composable
