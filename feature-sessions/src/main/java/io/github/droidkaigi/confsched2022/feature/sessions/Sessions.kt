@@ -25,10 +25,14 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -53,9 +57,15 @@ import io.github.droidkaigi.confsched2022.model.TimetableItemWithFavorite
 import io.github.droidkaigi.confsched2022.model.fake
 import io.github.droidkaigi.confsched2022.model.orEmptyContents
 import io.github.droidkaigi.confsched2022.ui.pagerTabIndicatorOffset
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.abs
 import io.github.droidkaigi.confsched2022.core.designsystem.R as CoreR
 
 @Composable
@@ -101,6 +111,7 @@ fun Sessions(
     val isTimetable = uiModel.isTimetable
     val pagerState = rememberPagerState()
     val sessionsListListStates = DroidKaigi2022Day.values().map { rememberLazyListState() }.toList()
+    var showTabDate by remember { mutableStateOf(true) }
     KaigiScaffold(
         modifier = modifier,
         topBar = {
@@ -110,6 +121,7 @@ fun Sessions(
                 if (isTimetable) null else sessionsListListStates,
                 scheduleState,
                 showNavigationIcon,
+                showTabDate,
                 onNavigationIconClick,
                 onSearchClick,
                 onToggleTimetableClick
@@ -134,7 +146,10 @@ fun Sessions(
                         pagerState = pagerState,
                         scheduleState = scheduleState,
                         days = days,
-                        onTimetableClick = onTimetableClick
+                        onTimetableClick = onTimetableClick,
+                        onVerticalScroll = { delta ->
+                            showTabDate = delta > 0
+                        }
                     )
                 } else {
                     SessionsList(
@@ -151,7 +166,7 @@ fun Sessions(
     }
 }
 
-@OptIn(ExperimentalPagerApi::class)
+@OptIn(ExperimentalPagerApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun Timetable(
     modifier: Modifier = Modifier,
@@ -159,6 +174,7 @@ fun Timetable(
     scheduleState: Loaded,
     days: Array<DroidKaigi2022Day>,
     onTimetableClick: (TimetableItemId) -> Unit,
+    onVerticalScroll: (Float) -> Unit,
 ) {
     val screenScaleState = rememberScreenScaleState()
     HorizontalPager(
@@ -170,6 +186,20 @@ fun Timetable(
         val timetable = scheduleState.schedule.dayToTimetable[day].orEmptyContents()
         val timetableState = rememberTimetableState(screenScaleState = screenScaleState)
         val coroutineScope = rememberCoroutineScope()
+
+        val scrollY = remember {
+            MutableStateFlow(timetableState.screenScrollState.scrollY)
+        }
+        LaunchedEffect(timetableState.screenScrollState.scrollY) {
+            scrollY.emit(timetableState.screenScrollState.scrollY)
+        }
+        LaunchedEffect(Unit) {
+            scrollY.drop(1)
+                .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
+                .map { it.second }
+                .filter { abs(it) > 0 }
+                .collect(onVerticalScroll)
+        }
 
         Row {
             Hours(
@@ -212,6 +242,7 @@ fun Timetable(
 @OptIn(ExperimentalPagerApi::class)
 @Composable
 fun SessionsList(
+    modifier: Modifier = Modifier,
     pagerState: PagerState,
     sessionsListListStates: List<LazyListState>,
     scheduleState: Loaded,
@@ -246,7 +277,8 @@ fun SessionsList(
         }
         SessionList(
             timetable = timeHeaderAndTimetableItems,
-            sessionsListListState = sessionsListListStates[dayIndex]
+            sessionsListListState = sessionsListListStates[dayIndex],
+            modifier = modifier
         ) { (timeHeader, timetableItemWithFavorite) ->
             Box(
                 modifier = Modifier
@@ -295,6 +327,7 @@ fun SessionsTopBar(
     sessionsListListStates: List<LazyListState>?,
     scheduleState: ScheduleState,
     showNavigationIcon: Boolean,
+    showTabDate: Boolean,
     onNavigationIconClick: () -> Unit,
     onSearchClick: () -> Unit,
     onToggleTimetableClick: (Boolean) -> Unit,
@@ -363,6 +396,7 @@ fun SessionsTopBar(
                     SessionDayTab(
                         index = index,
                         day = day,
+                        showDate = showTabDate,
                         selected = selected,
                         onTabClicked = {
                             coroutineScope.launch {

@@ -1,5 +1,7 @@
 package io.github.droidkaigi.confsched2022.feature.sessions
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,13 +28,17 @@ import io.github.droidkaigi.confsched2022.model.DroidKaigi2022Day
 internal fun SessionDayTab(
     index: Int,
     day: DroidKaigi2022Day,
+    showDate: Boolean,
     selected: Boolean,
     onTabClicked: (index: Int) -> Unit
 ) {
+    val tabHeight by animateDpAsState(if (showDate) 56.dp else 32.dp)
+    val dateFontSize by animateIntAsState(if (showDate) 24 else 0)
+
     Tab(
         selected = selected,
         onClick = { onTabClicked(index) },
-        modifier = Modifier.height(56.dp).padding(end = 8.dp).clip(CircleShape)
+        modifier = Modifier.height(tabHeight).padding(end = 8.dp).clip(CircleShape)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -53,7 +60,7 @@ internal fun SessionDayTab(
                 style = TextStyle(
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    fontSize = 24.sp,
+                    fontSize = dateFontSize.sp,
                     fontWeight = FontWeight(500)
                 ),
                 modifier = Modifier.fillMaxWidth()
