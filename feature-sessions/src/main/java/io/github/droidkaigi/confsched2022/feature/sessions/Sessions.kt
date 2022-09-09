@@ -1,5 +1,6 @@
 package io.github.droidkaigi.confsched2022.feature.sessions
 
+import android.view.MotionEvent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,8 +34,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -57,6 +60,7 @@ import io.github.droidkaigi.confsched2022.model.TimetableItemWithFavorite
 import io.github.droidkaigi.confsched2022.model.fake
 import io.github.droidkaigi.confsched2022.model.orEmptyContents
 import io.github.droidkaigi.confsched2022.ui.pagerTabIndicatorOffset
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -172,7 +176,7 @@ fun Sessions(
 
 enum class Direction { Up, Down }
 
-@OptIn(ExperimentalPagerApi::class)
+@OptIn(ExperimentalPagerApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun Timetable(
     modifier: Modifier = Modifier,
@@ -193,12 +197,16 @@ fun Timetable(
         val timetableState = rememberTimetableState(screenScaleState = screenScaleState)
         val coroutineScope = rememberCoroutineScope()
 
+        val motionEventBinder = remember { MotionEventBinder() }
         TimetableScrollDetector(
             state = timetableState,
+            binder = motionEventBinder,
             onScroll = onVerticalScroll,
         )
 
-        Row {
+        Row(
+            modifier = Modifier.motionEventSpy(motionEventBinder.watcher)
+        ) {
             Hours(
                 modifier = modifier.transformable(
                     rememberTransformableStateForScreenScale(timetableState.screenScaleState),
@@ -239,6 +247,7 @@ fun Timetable(
 @Composable
 fun TimetableScrollDetector(
     state: TimetableState,
+    binder: MotionEventBinder,
     onScroll: (Direction) -> Unit,
 ) {
     val scrollY = remember {
@@ -253,9 +262,26 @@ fun TimetableScrollDetector(
             .map { delta -> if (delta > 0) Direction.Down else Direction.Up }
             .collect(onScroll)
     }
+
+    // Detecting scroll down gesture at "Top-End".
+    LaunchedEffect(binder) {
+        val movingY = MutableStateFlow(0f)
+        binder.setOnMoveListener { motionEvent ->
+            if (state.screenScrollState.scrollY == 0f) {
+                movingY.tryEmit(motionEvent.y)
+            }
+        }
+        movingY
+            .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
+            .map { it.second }
+            .filter { delta -> delta > 0 }
+            .collect {
+                onScroll.invoke(Direction.Down)
+            }
+    }
 }
 
-@OptIn(ExperimentalPagerApi::class)
+@OptIn(ExperimentalPagerApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun SessionsList(
     modifier: Modifier = Modifier,
@@ -293,15 +319,17 @@ fun SessionsList(
             list.toList()
         }
 
+        val motionEventBinder = remember { MotionEventBinder() }
         SessionsListScrollDetector(
             state = remember { sessionsListListStates[dayIndex] },
+            binder = motionEventBinder,
             onScroll = onVerticalScroll,
         )
 
         SessionList(
             timetable = timeHeaderAndTimetableItems,
             sessionsListListState = sessionsListListStates[dayIndex],
-            modifier = modifier
+            modifier = modifier.motionEventSpy(motionEventBinder.watcher)
         ) { (timeHeader, timetableItemWithFavorite) ->
             Box(
                 modifier = Modifier
@@ -345,6 +373,7 @@ data class DurationTime(val startAt: String, val endAt: String)
 @Composable
 fun SessionsListScrollDetector(
     state: LazyListState,
+    binder: MotionEventBinder,
     onScroll: (Direction) -> Unit,
 ) {
     val firstVisibleItemScrollOffsetFlow = remember {
@@ -383,6 +412,39 @@ fun SessionsListScrollDetector(
             }
             .collect(onScroll)
     }
+
+    // Detecting scroll down gesture at "Top-End".
+    LaunchedEffect(binder) {
+        val movingY = MutableStateFlow(0f)
+        binder.setOnMoveListener { motionEvent ->
+            if (state.firstVisibleItemScrollOffset == 0 && state.firstVisibleItemIndex == 0) {
+                movingY.tryEmit(motionEvent.y)
+            }
+        }
+        movingY
+            .scan(0f to 0f) { acc, value -> value to (value - acc.first) }
+            .map { it.second }
+            .filter { delta -> delta > 0 }
+            .collect {
+                onScroll.invoke(Direction.Down)
+            }
+    }
+}
+
+class MotionEventBinder {
+
+    val watcher: (MotionEvent) -> Unit = { motionEvent ->
+        when (motionEvent.action) {
+            MotionEvent.ACTION_MOVE -> onMove(motionEvent)
+        }
+    }
+
+    private var onMoveListener: ((MotionEvent) -> Unit)? = null
+    fun setOnMoveListener(l: ((MotionEvent) -> Unit)?) {
+        onMoveListener = l
+    }
+
+    private fun onMove(motionEvent: MotionEvent) = onMoveListener?.invoke(motionEvent)
 }
 
 @OptIn(ExperimentalPagerApi::class)
