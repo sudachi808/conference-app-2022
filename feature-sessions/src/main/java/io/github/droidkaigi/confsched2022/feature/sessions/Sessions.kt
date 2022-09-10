@@ -377,12 +377,12 @@ fun SessionsListScrollDetector(
     onScroll: (Direction) -> Unit,
 ) {
     val firstVisibleItemScrollOffsetFlow = remember {
-        snapshotFlow { state.firstVisibleItemScrollOffset }
+        snapshotFlow { state.firstVisibleItemScrollOffset }.drop(1)
             .scan(0 to 0) { acc, value -> value to (value - acc.first) }
     }
     val firstVisibleItemIndexFlow = remember {
         firstVisibleItemScrollOffsetFlow
-            .map { state.firstVisibleItemIndex }
+            .map { state.firstVisibleItemIndex }.drop(1)
             .scan(0 to 0) { acc, value -> value to (value - acc.first) }
     }
 
