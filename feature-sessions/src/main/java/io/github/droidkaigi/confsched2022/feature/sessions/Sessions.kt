@@ -285,7 +285,6 @@ fun TimetableScrollDetector(
 @OptIn(ExperimentalPagerApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun SessionsList(
-    modifier: Modifier = Modifier,
     pagerState: PagerState,
     sessionsListListStates: List<LazyListState>,
     scheduleState: Loaded,
@@ -330,7 +329,7 @@ fun SessionsList(
         SessionList(
             timetable = timeHeaderAndTimetableItems,
             sessionsListListState = sessionsListListStates[dayIndex],
-            modifier = modifier.motionEventSpy(motionEventBinder.watcher)
+            modifier = Modifier.motionEventSpy(motionEventBinder.watcher)
         ) { (timeHeader, timetableItemWithFavorite) ->
             Box(
                 modifier = Modifier
